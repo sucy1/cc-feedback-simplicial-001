@@ -332,6 +332,177 @@ function connectedComponents_sparse(cells) {
   return components
 }
 
+//Inversion parity of a small list (permutation parity relative to sorted order)
+function listParity(a) {
+  var p = 0
+  for(var i=0, n=a.length; i<n; ++i) {
+    for(var j=i+1; j<n; ++j) {
+      if(a[i] > a[j]) {
+        p ^= 1
+      }
+    }
+  }
+  return p
+}
+
+function compareNumbers(a, b) {
+  return a - b
+}
+
+//Checks if a cell has a repeated vertex
+function isDegenerate(c) {
+  for(var i=0, n=c.length; i<n; ++i) {
+    for(var j=i+1; j<n; ++j) {
+      if(c[i] === c[j]) {
+        return true
+      }
+    }
+  }
+  return false
+}
+
+//Builds the orientation constraint graph for a complex.  Two cells are
+//adjacent if they share a common (d-1)-face; the edge weight is 1 when the
+//cells induce the same orientation on that face (so exactly one of them must
+//be flipped) and 0 when they already induce opposite orientations.
+//Degenerate cells (repeated vertices) and cells of dimension < 1 are left
+//out of the graph and are never flipped.
+function orientationGraph(cells) {
+  var n = cells.length
+  var adj = new Array(n)
+  for(var i=0; i<n; ++i) {
+    adj[i] = []
+  }
+  var faces = {}
+  for(var i=0; i<n; ++i) {
+    var c = cells[i]
+    var cl = c.length
+    if(cl < 2 || isDegenerate(c)) {
+      continue
+    }
+    for(var j=0; j<cl; ++j) {
+      var f = new Array(cl-1)
+      for(var k=0, l=0; k<cl; ++k) {
+        if(k !== j) {
+          f[l++] = c[k]
+        }
+      }
+      //Canonical orientation bit of this face: (-1)^j twisted by the parity
+      //of the face vertices relative to sorted order
+      var bit = (j & 1) ^ listParity(f)
+      var key = f.slice(0).sort(compareNumbers).join(",")
+      var prev = faces[key]
+      if(prev) {
+        var xor = (prev[1] === bit) ? 1 : 0
+        adj[prev[0]].push([i, xor])
+        adj[i].push([prev[0], xor])
+        faces[key] = [i, bit]
+      } else {
+        faces[key] = [i, bit]
+      }
+    }
+  }
+  return adj
+}
+
+//Computes a flip assignment making the complex consistently oriented.
+//Returns an array of 0/1 flips per cell, or null if the complex is not
+//orientable.
+function computeOrientationFlips(cells) {
+  var adj = orientationGraph(cells)
+  var n = cells.length
+  var flip = new Array(n)
+  for(var i=0; i<n; ++i) {
+    flip[i] = -1
+  }
+  var queue = []
+  for(var s=0; s<n; ++s) {
+    if(flip[s] >= 0) {
+      continue
+    }
+    flip[s] = 0
+    queue.length = 0
+    queue.push(s)
+    while(queue.length > 0) {
+      var i = queue.pop()
+      var edges = adj[i]
+      for(var k=0, kn=edges.length; k<kn; ++k) {
+        var j    = edges[k][0]
+          , want = flip[i] ^ edges[k][1]
+        if(flip[j] < 0) {
+          flip[j] = want
+          queue.push(j)
+        } else if(flip[j] !== want) {
+          return null
+        }
+      }
+    }
+  }
+  return flip
+}
+
+//Unifies the winding of all cells in the complex so that any two cells
+//sharing a (d-1)-face induce opposite orientations on it.  Works for cells
+//of any dimension (edges, triangles, tetrahedra, ...).  Returns a new array;
+//the input is not modified.  Isolated and degenerate cells are passed
+//through unchanged.  Throws an error if the complex is not orientable
+//(e.g. a triangulated Möbius strip).
+function orient(cells) {
+  var flip = computeOrientationFlips(cells)
+  if(!flip) {
+    throw new Error("non-orientable complex")
+  }
+  var result = cloneCells(cells)
+  for(var i=0, n=cells.length; i<n; ++i) {
+    if(flip[i] > 0) {
+      var c = result[i]
+      var t = c[0]
+      c[0] = c[1]
+      c[1] = t
+    }
+  }
+  return result
+}
+exports.orient = orient
+
+//Checks if the cells of the complex are consistently oriented: no two cells
+//may induce the same orientation on a shared (d-1)-face.
+function isOriented(cells) {
+  var faces = {}
+  for(var i=0, n=cells.length; i<n; ++i) {
+    var c = cells[i]
+    var cl = c.length
+    if(cl < 2 || isDegenerate(c)) {
+      continue
+    }
+    for(var j=0; j<cl; ++j) {
+      var f = new Array(cl-1)
+      for(var k=0, l=0; k<cl; ++k) {
+        if(k !== j) {
+          f[l++] = c[k]
+        }
+      }
+      var bit = (j & 1) ^ listParity(f)
+      var key = f.slice(0).sort(compareNumbers).join(",")
+      if(key in faces) {
+        if(faces[key] === bit) {
+          return false
+        }
+      } else {
+        faces[key] = bit
+      }
+    }
+  }
+  return true
+}
+exports.isOriented = isOriented
+
+//Checks if the complex admits a consistent orientation
+function orientable(cells) {
+  return computeOrientationFlips(cells) !== null
+}
+exports.orientable = orientable
+
 //Computes connected components for a cell complex
 function connectedComponents(cells, vertex_count) {
   if(vertex_count) {

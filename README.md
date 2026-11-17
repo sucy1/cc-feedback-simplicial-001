@@ -226,6 +226,33 @@ Splits a simplicial complex into its <a href="http://en.wikipedia.org/wiki/Conne
 * If `vertex_count` is specified:  `O(vertex_count + dimension(cells)^2 * cells.length)`
 * If `vertex_count` is not specified: `O(dimension(cells)^3 * log(cells.length) * cells.length)`
 
+### `orient(cells)`
+Unifies the winding (orientation) of all cells in a simplicial complex so that any two cells sharing a common (d-1)-face induce opposite orientations on it.  Works for cells of any dimension >= 1 (edges, triangles, tetrahedra, ...).  The input is not modified.  Isolated and degenerate cells (cells with a repeated vertex) are passed through unchanged.
+
+* `cells` is an array of cells
+
+**Returns:** A new array of cells with a consistent orientation.  Throws an error with the message `"non-orientable complex"` if the complex does not admit a consistent orientation (for example a triangulated Möbius strip).
+
+**Time complexity:** `O(dimension(cells)^2 * cells.length)`
+
+### `isOriented(cells)`
+Checks if the cells of a simplicial complex are consistently oriented, that is no two cells induce the same orientation on a shared (d-1)-face.
+
+* `cells` is an array of cells
+
+**Returns:** `true` if the complex is consistently oriented, `false` otherwise.
+
+**Time complexity:** `O(dimension(cells)^2 * cells.length)`
+
+### `orientable(cells)`
+Checks if a simplicial complex admits a consistent orientation.
+
+* `cells` is an array of cells
+
+**Returns:** `true` if the complex can be oriented, `false` otherwise.
+
+**Time complexity:** `O(dimension(cells)^2 * cells.length)`
+
 Credits
 =======
 (c) 2013-2014 Mikola Lysenko.  MIT License
